@@ -238,6 +238,14 @@ doConcat()
 
   samweb -e sbnd declare-file $JSONFILE
   samweb -e sbnd add-file-location ${UNIQUEOUTCONCATNAME} $OUTDIR
+
+  # Check that we find the output file, this will tell us if SAM actually crea
+  if [[ ! -f "$(samweb -e sbnd locate-file $UNIQUEOUTCONCATNAME | sed 's/enstore://')/$UNIQUEOUTCONCATNAME" ]]
+  then
+    echo "Output file $UNIQUEOUTCONCATNAME not found in outdir $OUTDIR"
+    exit 3
+  fi
+
   echo "$UNIQUEOUTCONCATNAME declared and located by SAM"
 
   if [ ! -z "$FLATTEN" ]
@@ -279,6 +287,14 @@ doConcat()
 
     samweb -e sbnd declare-file "$FLATJSONFILE"
     samweb -e sbnd add-file-location ${UNIQUEOUTFLATNAME} $OUTDIR
+
+    # Check that we find the output file, this will tell us if SAM actually crea
+    if [[ ! -f "$(samweb -e sbnd locate-file $UNIQUEOUTFLATNAME | sed 's/enstore://')/$UNIQUEOUTFLATNAME" ]]
+    then
+      echo "Output file $UNIQUEOUTFLATNAME not found in outdir $OUTDIR"
+      exit 3
+    fi
+
     echo "$UNIQUEOUTFLATNAME declared and located by SAM"
   fi
 }
