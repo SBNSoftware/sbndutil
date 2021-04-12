@@ -2,8 +2,8 @@
 
 # Define the output directories
 # These will be appended with metadata info
-WORKDIR="/pnfs/sbnd/scratch/sbndpro/mcp"
-OUTDIR="/pnfs/sbnd/persistent/sbndpro/mcp"
+WORKDIR="/pnfs/sbnd/scratch/$USER/mcp"
+OUTDIR="/pnfs/sbnd/persistent/$USER/mcp"
 # Concatenate files together up to 1GB
 MAXSIZE=1000000000
 
@@ -57,6 +57,10 @@ while :; do
       FLATTEN=true
       shift
       ;;
+    --clean)       # Takes an option argument; ensure it has been specified.
+      CLEAN=true
+      shift
+      ;;
     *) break
   esac
 done
@@ -94,6 +98,10 @@ if [ ! -z "$FLATTEN" ]
 then
   echo "  Making Flat CAFS"
 fi
+if [ ! -z "$CLEAN" ]
+then
+  echo "  Cleaning all outputs"
+fi
 
 prepare()
 {
@@ -112,32 +120,21 @@ prepare()
   MDSBNDPROJECTVERSION=$(jq -r '."sbnd_project.version"' base.json)
   MDSBNDPROJECTSTAGE=$(jq -r '."sbnd_project.stage"' base.json)
 
-  OUTDIR="$OUTDIR/$MDFILETYPE/$MDPRODUCTIONTYPE/$MDPRODUCTIONNAME/$MDSBNDPROJECTNAME/$MDSBNDPROJECTVERSION/$MDSBNDPROJECTSTAGE"
-  WORKDIR="$WORKDIR/$MDFILETYPE/$MDPRODUCTIONTYPE/$MDPRODUCTIONNAME/$MDSBNDPROJECTNAME/$MDSBNDPROJECTVERSION/$MDSBNDPROJECTSTAGE"
-
-  mkdir -p $OUTDIR
-  mkdir -p $WORKDIR
-
-  if [ -z "$(ls -A $WORKDIR)" ]
-  then
-    echo "WORKDIR: $WORKDIR"
-  else
-    echo "Not Empty: $WORKDIR"
-    exit 3
-  fi
-
-  if [ -z "$(ls -A $OUTDIR)" ]
-  then
-    echo "OUTDIR: $OUTDIR"
-  else
-    echo "Not Empty: $OUTDIR"
-    exit 3
-  fi
-
   if [ $(samweb -e sbnd list-definitions | grep "$MDPRODUCTIONDEFNAME") ]
   then
-    echo "SAM Definition $MDPRODUCTIONDEFNAME already present"
-    exit 3
+    if [ ! -z $CLEAN ]
+    then
+      echo "Deleting SAM Definition $MDPRODUCTIONDEFNAME"
+      for FILE in $(samweb -e sbnd list-definition-files $MDPRODUCTIONDEFNAME);
+      do
+        ifdh rm $(samweb -e sbnd locate-file $FILE | sed 's/enstore://')/$FILE
+        samweb -e sbnd retire-file $FILE
+      done
+      samweb delete-definition $MDPRODUCTIONDEFNAME
+    else
+      echo "SAM Definition $MDPRODUCTIONDEFNAME already present"
+      exit 3
+    fi
   else
     echo "Creating SAM Definition $MDPRODUCTIONDEFNAME"
   fi
@@ -147,11 +144,52 @@ prepare()
     FLATMDPRODUCTIONDEFNAME=${MDPRODUCTIONDEFNAME/concat_caf/flat_caf}
     if [ $(samweb -e sbnd list-definitions | grep "$FLATMDPRODUCTIONDEFNAME") ]
     then
-      echo "SAM Definition $FLATMDPRODUCTIONDEFNAME already present"
-      exit 3
+      if [ ! -z $CLEAN ]
+      then
+        echo "Deleting SAM Definition $FLATMDPRODUCTIONDEFNAME"
+        for FILE in $(samweb -e sbnd list-definition-files $FLATMDPRODUCTIONDEFNAME);
+        do
+          ifdh rm $(samweb -e sbnd locate-file $FILE | sed 's/enstore://')/$FILE
+          samweb -e sbnd retire-file $FILE
+        done
+        samweb delete-definition $FLATMDPRODUCTIONDEFNAME
+      else
+        echo "SAM Definition $FLATMDPRODUCTIONDEFNAME already present"
+        exit 3
+      fi
     else
-      echo "Creating flat caf SAM Definition $FLATMDPRODUCTIONDEFNAME"
+      echo "Creating SAM Definition $FLATMDPRODUCTIONDEFNAME"
     fi
+  fi
+
+  OUTDIR="$OUTDIR/$MDFILETYPE/$MDPRODUCTIONTYPE/$MDPRODUCTIONNAME/$MDSBNDPROJECTNAME/$MDSBNDPROJECTVERSION/$MDSBNDPROJECTSTAGE"
+  WORKDIR="$WORKDIR/$MDFILETYPE/$MDPRODUCTIONTYPE/$MDPRODUCTIONNAME/$MDSBNDPROJECTNAME/$MDSBNDPROJECTVERSION/$MDSBNDPROJECTSTAGE"
+
+  mkdir -p $OUTDIR
+  mkdir -p $WORKDIR
+
+  if [ -z "$(ls -A $WORKDIR)" ]
+  then
+    echo "WORKDIR: $WORKDIR"
+  elif [ ! -z "$CLEAN" ]
+  then
+    echo "Deleting WORKDIR: $WORKDIR"
+    ifdh rmdir $WORKDIR --force=srm
+  else
+    echo "Not Empty: $WORKDIR"
+    exit 3
+  fi
+
+  if [ -z "$(ls -A $OUTDIR)" ]
+  then
+    echo "OUTDIR: $OUTDIR"
+  elif [ ! -z "$CLEAN" ]
+  then
+    echo "Deleting OUTDIR: $OUTDIR"
+    ifdh rmdir $OUTDIR --force=srm
+  else
+    echo "Not Empty: $OUTDIR"
+    exit 3
   fi
 }
 
@@ -246,6 +284,11 @@ doConcat()
 }
 
 prepare
+
+if [ ! -z $CLEAN ]
+then
+  exit 0
+fi
 
 declare -i CONCATCOUNT=0
 declare -i SLICENUM=0
