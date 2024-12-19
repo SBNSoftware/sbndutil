@@ -15,7 +15,7 @@
 
 cmake_minimum_required(VERSION 3.19 FATAL_ERROR)
 
-project(sbndutil VERSION 09.93.01.01 LANGUAGES CXX)
+project(sbndutil VERSION 09.93.01.02 LANGUAGES CXX)
 
 # cetbuildtools contains our cmake modules
 find_package(cetbuildtools REQUIRED)
